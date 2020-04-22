@@ -6,5 +6,5 @@ This requires PipEnv to execute
 
 ```
 pinenv install
-pipenv run python "shotty.py command"
+pipenv run python "shotty/shotty.py command"
 ````
