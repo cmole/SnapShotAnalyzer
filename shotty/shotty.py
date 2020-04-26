@@ -1,16 +1,21 @@
 import boto3
+import click
 
-def getSessions():
-    
-    session = boto3.Session(profile_name='shotty')
-    ec2 = session.resource('ec2')
+session = boto3.Session(profile_name='shotty')
+ec2 = session.resource('ec2')
 
+@click.command()
+def list_sessions():
+    "List EC2 Sessions"
     for i in ec2.instances.all():
-        print(i)
+        print(', '.join((
+            i.id,
+            i.instance_type,
+            i.placement['AvailabilityZone'],
+            i.state['Name'],
+            i.public_dns_name))
+        )
     
-    return ec2.instances.all()
-
 
 if __name__ == '__main__':
-    print("initializing")
-    
+    list_sessions()
