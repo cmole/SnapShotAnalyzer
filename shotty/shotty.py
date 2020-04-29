@@ -17,6 +17,11 @@ def getInstances(project):
 
     return instances
 
+def has_pending_snapshot(volume):
+    snapshots = list(volume.snapshots.all())
+    return snapshots and snapshots[0].state == 'pending'
+
+
 @click.group()
 def cli():
     """shotty manages snapshots"""
@@ -92,12 +97,15 @@ def create_snapshot(project):
             i.stop()
             i.wait_until_stopped()
             for v in i.volumes.all():
+                if has_pending_snapshot(v):
+                    print("  Existing snapshot in progress.  Skipping {0} snapshot.".format(v.id))
+                    continue
                 print("  Creating snapshot of {0}".format(v.id))
                 v.create_snapshot(Description="Created by snappy")
+            
             print("Starting {0}...".format(i.id))
             i.start()
-            i.wait_until_running()
-         except botocore.exceptions.ClientError as e:
+        except botocore.exceptions.ClientError as e:
             print(" Error processing {0}.".format(i.id) + str(e))
             continue
     return
@@ -136,9 +144,8 @@ def snapshots():
 @snapshots.command('list')
 @click.option('--project', default=None,
     help='Only instances for project (tag Project:<name>)')
-@click.option('--all', 'list_all', default=False, is_flag==True
+@click.option('--all', 'list_all', default=False, is_flag=True,
     help='List all snapshots for each volume, not just the most recent)')
-
 def list_snapshots(project, list_all):
     "List EC2 snapshots"
     
@@ -154,8 +161,31 @@ def list_snapshots(project, list_all):
                     s.progress,
                     s.start_time.strftime("%c")
                 )))
-                if s.state = 'completed' and not list_all: break
+                if s.state == 'completed' and not list_all: break
     return
+
+
+@snapshots.command('delete')
+@click.option('--project', default=None,
+    help='Only instances for project (tag Project:<name>)')
+def delete_snapshots(project):
+    "Delete EC2 snapshots"
+    
+    instances = getInstances(project)
+    for i in instances:
+        for v in i.volumes.all():
+            for s in v.snapshots.all():            
+                if s.state == 'pending':
+                    print("Skipping pending snapshot {0}".format(v.id))
+                    continue
+                
+                print("Deleting snapshot: " + ', '.join((
+                    i.id,
+                    v.id,
+                    s.id)))
+                s.delete()
+    return
+
 
 if __name__ == '__main__':
     cli()
