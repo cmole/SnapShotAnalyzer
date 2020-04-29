@@ -1,4 +1,5 @@
 import boto3
+import botocore
 import click
 
 
@@ -54,7 +55,12 @@ def stop_sessions(project):
 
     instances = getInstances(project)
     for i in instances:
-        i.stop()
+        print("Stopping {0}...".format(i.id))
+        try:
+            i.stop()
+        except botocore.exceptions.ClientError as e:
+            print(" Could not stop {0}.".format(i.id) + str(e))
+            continue
     return
 
 @instances.command('start')
@@ -65,7 +71,12 @@ def start_sessions(project):
 
     instances = getInstances(project)
     for i in instances:
-        i.start()
+        print("Starting {0}...".format(i.id))
+        try:
+            i.start()
+        except botocore.exceptions.ClientError as e:
+            print(" Could not stop {0}.".format(i.id) + str(e))
+            continue
     return
 
 @instances.command('snapshot')
@@ -77,14 +88,18 @@ def create_snapshot(project):
     instances = getInstances(project)
     for i in instances:
         print("Stopping {0}...".format(i.id))
-        i.stop()
-        i.wait_until_stopped()
-        for v in i.volumes.all():
-            print("  Creating snapshot of {0}".format(v.id))
-            v.create_snapshot(Description="Created by snappy")
-        print("Starting {0}...".format(i.id))
-        i.start()
-        i.wait_until_running()
+        try:
+            i.stop()
+            i.wait_until_stopped()
+            for v in i.volumes.all():
+                print("  Creating snapshot of {0}".format(v.id))
+                v.create_snapshot(Description="Created by snappy")
+            print("Starting {0}...".format(i.id))
+            i.start()
+            i.wait_until_running()
+         except botocore.exceptions.ClientError as e:
+            print(" Error processing {0}.".format(i.id) + str(e))
+            continue
     return
 
 
@@ -121,7 +136,10 @@ def snapshots():
 @snapshots.command('list')
 @click.option('--project', default=None,
     help='Only instances for project (tag Project:<name>)')
-def list_snapshots(project):
+@click.option('--all', 'list_all', default=False, is_flag==True
+    help='List all snapshots for each volume, not just the most recent)')
+
+def list_snapshots(project, list_all):
     "List EC2 snapshots"
     
     instances = getInstances(project)
@@ -136,6 +154,7 @@ def list_snapshots(project):
                     s.progress,
                     s.start_time.strftime("%c")
                 )))
+                if s.state = 'completed' and not list_all: break
     return
 
 if __name__ == '__main__':
